@@ -35,7 +35,7 @@ The easiest way to use AllThatNode MCP with Cursor AI is to add it directly to y
       "command": "npx",
       "args": [
         "-y",
-        "@allthatnode/mcp@latest"
+        "@jongkwang/allthatnode-mcp@latest"
       ]
     }
   }
@@ -49,7 +49,7 @@ The easiest way to use AllThatNode MCP with Cursor AI is to add it directly to y
 If you prefer to run the MCP server manually:
 
 ```bash
-npx @allthatnode/mcp
+npx @jongkwang/allthatnode-mcp
 ```
 
 This will start the MCP server on port 3333 by default.
@@ -59,7 +59,7 @@ This will start the MCP server on port 3333 by default.
 To install AllThatNode MCP globally:
 
 ```bash
-npm install -g @allthatnode/mcp
+npm install -g @jongkwang/allthatnode-mcp
 ```
 
 Then you can run it from anywhere:
@@ -71,7 +71,7 @@ allthatnode-mcp
 ### Command Line Options
 
 ```bash
-npx @allthatnode/mcp [options]
+npx @jongkwang/allthatnode-mcp [options]
 
 Options:
   --port, -p       Specify the port (default: 3333)
@@ -91,7 +91,7 @@ Options:
 
 1. Start the MCP server:
    ```bash
-   npx @allthatnode/mcp
+   npx @jongkwang/allthatnode-mcp
    ```
 
 2. In Cursor AI, register the MCP tool:
@@ -129,7 +129,7 @@ Can you get the latest block number on Ethereum Mainnet using the ethereum_mainn
      "mcpServers": {
        "allthatnode": {
          "command": "npx",
-         "args": ["-y", "@allthatnode/mcp@latest"]
+         "args": ["-y", "@jongkwang/allthatnode-mcp@latest"]
        }
      }
    }
