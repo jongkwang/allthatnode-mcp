@@ -30,15 +30,7 @@ function handleStdioMode() {
   const blockchainService = require('../src/services/blockchain.service');
   const tools = blockchainService.getToolsList();
   
-  // Send initial response with tool list
-  const initialResponse = {
-    jsonrpc: "2.0",
-    id: "1",
-    result: { tools }
-  };
-  
-  // Send the response as a single line
-  process.stdout.write(JSON.stringify(initialResponse) + '\n');
+  // No longer send initial response - wait for initialize request from Cursor
   
   // Handle commands from stdin
   rl.on('line', async (line) => {
@@ -50,7 +42,18 @@ function handleStdioMode() {
       
       const { id, method, params } = request;
       
-      if (method === 'execute') {
+      // Handle initialize method for Cursor MCP
+      if (method === 'initialize') {
+        const response = {
+          jsonrpc: "2.0",
+          id: id,
+          result: {
+            capabilities: {}
+          }
+        };
+        process.stdout.write(JSON.stringify(response) + '\n');
+        return;
+      } else if (method === 'execute') {
         const { tool, params: toolParams } = params;
         
         if (!tool) {
