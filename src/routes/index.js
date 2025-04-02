@@ -126,19 +126,35 @@ function sendSSEResponse(req, res) {
     });
   });
   
-  const response = { tools };
+  // Create JSON-RPC 2.0 compliant response
+  const jsonRpcResponse = {
+    jsonrpc: "2.0",
+    id: "1",
+    result: {
+      tools: tools
+    }
+  };
+
+  logger.debug(`Sending JSON-RPC response: ${JSON.stringify(jsonRpcResponse)}`);
   
   // Setup SSE connection
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   
-  // Send initial data
-  res.write(`data: ${JSON.stringify(response)}\n\n`);
+  // Send initial data in JSON-RPC 2.0 format
+  res.write(`data: ${JSON.stringify(jsonRpcResponse)}\n\n`);
   
-  // Keep connection open
+  // Keep connection open with heartbeat
   const intervalId = setInterval(() => {
-    res.write(': ping\n\n');
+    const heartbeat = {
+      jsonrpc: "2.0",
+      method: "heartbeat",
+      params: {
+        timestamp: new Date().toISOString()
+      }
+    };
+    res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
   }, 30000);
   
   // Handle client disconnect
