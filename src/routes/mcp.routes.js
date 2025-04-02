@@ -4,6 +4,91 @@ const { logger } = require('../utils/logger');
 const router = express.Router();
 
 /**
+ * GET /sse
+ * SSE endpoint for MCP (restored for compatibility)
+ */
+router.get('/sse', (req, res) => {
+  logger.debug('Handling GET /mcp/sse request (SSE)');
+  logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
+  
+  const tools = [];
+  const networks = blockchainService.getAvailableNetworks();
+  
+  // Create a tool for each network
+  networks.forEach(networkId => {
+    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
+    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
+    
+    tools.push({
+      name: toolName,
+      description: `JSON-RPC API for ${networkId}`,
+      parameters: {
+        type: 'object',
+        required: ['method'],
+        properties: {
+          method: {
+            type: 'string',
+            description: 'JSON-RPC method name'
+          },
+          params: {
+            type: 'array',
+            description: 'JSON-RPC method parameters',
+            items: {
+              type: 'object'
+            }
+          },
+          id: {
+            type: ['string', 'number'],
+            description: 'Request ID',
+            default: 1
+          }
+        }
+      }
+    });
+  });
+  
+  // Create JSON-RPC 2.0 compliant response with client's request ID
+  const reqId = req.query.id || req.headers['x-request-id'] || "1";
+  
+  const jsonRpcResponse = {
+    jsonrpc: "2.0",
+    id: reqId,
+    result: {
+      tools: tools
+    }
+  };
+  
+  logger.debug(`Sending JSON-RPC response with ID ${reqId}: ${JSON.stringify(jsonRpcResponse)}`);
+  
+  // Setup SSE connection
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  // Send initial data in JSON-RPC 2.0 format
+  res.write(`data: ${JSON.stringify(jsonRpcResponse)}\n\n`);
+  
+  // Keep connection open with heartbeat
+  const intervalId = setInterval(() => {
+    const heartbeat = {
+      jsonrpc: "2.0",
+      method: "heartbeat",
+      params: {
+        timestamp: new Date().toISOString()
+      }
+    };
+    res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
+  }, 30000);
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    clearInterval(intervalId);
+    res.end();
+    logger.debug('SSE connection closed');
+  });
+});
+
+/**
  * GET /commands
  * Returns the MCP commands definition (Command-based MCP)
  */
