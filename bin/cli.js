@@ -144,7 +144,7 @@ function handleStdioMode() {
             jsonrpc: "2.0",
             id: id,
             result: {
-              protocolVersion: "1.0.0",
+              protocolVersion: "0.2.0",
               serverInfo: {
                 name: "AllThatNode MCP",
                 version: package.version,
