@@ -4,6 +4,72 @@ const { logger } = require('../utils/logger');
 const router = express.Router();
 
 /**
+ * GET /mcp/events
+ * SSE endpoint for MCP events
+ */
+router.get('/events', (req, res) => {
+  logger.debug('Handling GET /mcp/events request (SSE)');
+  
+  const tools = [];
+  const networks = blockchainService.getAvailableNetworks();
+  
+  // Create a tool for each network
+  networks.forEach(networkId => {
+    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
+    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
+    
+    tools.push({
+      name: toolName,
+      description: `JSON-RPC API for ${networkId}`,
+      parameters: {
+        type: 'object',
+        required: ['method'],
+        properties: {
+          method: {
+            type: 'string',
+            description: 'JSON-RPC method name'
+          },
+          params: {
+            type: 'array',
+            description: 'JSON-RPC method parameters',
+            items: {
+              type: 'object'
+            }
+          },
+          id: {
+            type: ['string', 'number'],
+            description: 'Request ID',
+            default: 1
+          }
+        }
+      }
+    });
+  });
+  
+  const response = { tools };
+  
+  // Setup SSE connection
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  // Send initial data
+  res.write(`data: ${JSON.stringify(response)}\n\n`);
+  
+  // Keep connection open
+  const intervalId = setInterval(() => {
+    res.write(': ping\n\n');
+  }, 30000);
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    clearInterval(intervalId);
+    res.end();
+    logger.debug('SSE connection closed');
+  });
+});
+
+/**
  * GET /mcp/tools
  * Returns the MCP tools definition
  */
@@ -49,31 +115,7 @@ router.get('/tools', (req, res) => {
   const response = { tools };
   logger.debug(`Responding with: ${JSON.stringify(response)}`);
   
-  // Handle SSE request if Accept header includes 'text/event-stream'
-  const acceptHeader = req.headers.accept || '';
-  if (acceptHeader.includes('text/event-stream')) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    
-    // Send initial data
-    res.write(`data: ${JSON.stringify(response)}\n\n`);
-    
-    // Keep connection open
-    const intervalId = setInterval(() => {
-      res.write(': ping\n\n');
-    }, 30000);
-    
-    // Handle client disconnect
-    req.on('close', () => {
-      clearInterval(intervalId);
-      res.end();
-      logger.debug('SSE connection closed');
-    });
-  } else {
-    // Regular HTTP response
-    return res.json(response);
-  }
+  return res.json(response);
 });
 
 /**
