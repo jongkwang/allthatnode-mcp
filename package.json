@@ -1,6 +1,6 @@
 {
   "name": "@jongkwang/allthatnode-mcp",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Model Context Protocol (MCP) implementation for AllThatNode blockchain RPC services",
   "main": "src/index.js",
   "bin": {
