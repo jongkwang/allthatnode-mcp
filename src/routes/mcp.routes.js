@@ -49,9 +49,8 @@ router.get('/tools', (req, res) => {
   const response = { tools };
   logger.debug(`Responding with: ${JSON.stringify(response)}`);
   
-  // Set explicit content-type and send JSON response manually
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  return res.send(JSON.stringify(response));
+  // Use Express's res.json() instead of manual JSON stringification
+  return res.json(response);
 });
 
 /**
@@ -67,12 +66,11 @@ router.post('/rpc/:network', async (req, res) => {
     
     if (!method) {
       logger.error('Missing RPC method in request');
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return res.status(400).send(JSON.stringify({
+      return res.status(400).json({
         error: {
           message: 'Missing RPC method'
         }
-      }));
+      });
     }
     
     const response = await blockchainService.processRpcRequest(
@@ -82,16 +80,14 @@ router.post('/rpc/:network', async (req, res) => {
       id || 1
     );
     
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return res.send(JSON.stringify(response));
+    return res.json(response);
   } catch (error) {
     logger.error(`Error processing RPC request: ${error.message}`);
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return res.status(500).send(JSON.stringify({
+    return res.status(500).json({
       error: {
         message: error.message
       }
-    }));
+    });
   }
 });
 
@@ -103,8 +99,7 @@ router.get('/networks', (req, res) => {
   logger.debug('Handling GET /mcp/networks request');
   
   const networks = blockchainService.getAvailableNetworks();
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  return res.send(JSON.stringify({ networks }));
+  return res.json({ networks });
 });
 
 /**
@@ -114,11 +109,10 @@ router.get('/networks', (req, res) => {
 router.get('/health', (req, res) => {
   logger.debug('Handling GET /mcp/health request');
   
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  return res.send(JSON.stringify({
+  return res.json({
     status: 'ok',
     timestamp: new Date().toISOString()
-  }));
+  });
 });
 
 module.exports = router; 
