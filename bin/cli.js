@@ -144,6 +144,12 @@ function handleStdioMode() {
             jsonrpc: "2.0",
             id: id,
             result: {
+              protocolVersion: "0.1.0",
+              serverInfo: {
+                name: "AllThatNode MCP",
+                version: package.version,
+                description: "AllThatNode Blockchain RPC API for Cursor MCP"
+              },
               capabilities: {}
             }
           });
