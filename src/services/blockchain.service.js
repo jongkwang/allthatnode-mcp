@@ -79,6 +79,51 @@ class BlockchainService {
     const service = this.getService(networkId);
     return service.processRpcRequest(method, params, id);
   }
+
+  /**
+   * Get all available networks as a list of tools
+   * 
+   * @returns {Array<Object>} - Array of tool objects
+   */
+  getToolsList() {
+    const tools = [];
+    const networks = this.getAvailableNetworks();
+    
+    // Create a tool for each network
+    networks.forEach(networkId => {
+      // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
+      const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
+      
+      tools.push({
+        name: toolName,
+        description: `JSON-RPC API for ${networkId}`,
+        parameters: {
+          type: 'object',
+          required: ['method'],
+          properties: {
+            method: {
+              type: 'string',
+              description: 'JSON-RPC method name'
+            },
+            params: {
+              type: 'array',
+              description: 'JSON-RPC method parameters',
+              items: {
+                type: 'object'
+              }
+            },
+            id: {
+              type: ['string', 'number'],
+              description: 'Request ID',
+              default: 1
+            }
+          }
+        }
+      });
+    });
+    
+    return tools;
+  }
 }
 
 // Export a singleton instance
