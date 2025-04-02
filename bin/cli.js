@@ -91,6 +91,16 @@ function handleStdioMode() {
           }
         });
         return;
+      } else if (method === 'tools') {
+        // Return available tools
+        sendJSONResponse({
+          jsonrpc: "2.0",
+          id: id,
+          result: {
+            tools: tools
+          }
+        });
+        return;
       } else if (method === 'execute') {
         const { tool, params: toolParams } = params;
         
