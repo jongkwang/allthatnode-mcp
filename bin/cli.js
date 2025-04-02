@@ -1,11 +1,36 @@
 #!/usr/bin/env node
 
+// VERY EARLY LOGGING TO STDERR
+process.stderr.write('[MCP Server] Script start\n');
+
 const { program } = require('commander');
 const package = require('../package.json');
 const server = require('../src/index');
 const net = require('net');
 const { logger } = require('../src/utils/logger');
 const readline = require('readline');
+
+// VERY EARLY LOGGING TO STDERR
+process.stderr.write('[MCP Server] Imports complete\n');
+
+// Global uncaught exception handler
+process.on('uncaughtException', (err, origin) => {
+  process.stderr.write(`[MCP Server] Uncaught Exception: ${err.message}\n`);
+  process.stderr.write(`Origin: ${origin}\n`);
+  process.stderr.write(`Stack: ${err.stack}\n`);
+  process.exit(1);
+});
+
+// Global unhandled rejection handler
+process.on('unhandledRejection', (reason, promise) => {
+  process.stderr.write(`[MCP Server] Unhandled Rejection: ${reason}\n`);
+  process.stderr.write(`Promise: ${promise}\n`);
+  // Consider logging stack trace if available in `reason`
+  if (reason instanceof Error) {
+    process.stderr.write(`Stack: ${reason.stack}\n`);
+  }
+  process.exit(1);
+});
 
 // Check if running in stdio mode (Cursor MCP)
 function isStdioMode() {
@@ -14,221 +39,231 @@ function isStdioMode() {
 
 // Handle stdin/stdout communication for Cursor MCP
 function handleStdioMode() {
-  // Log to stderr instead of stdout to avoid interfering with JSON communication
-  console.error('Running in stdio mode for Cursor MCP');
+  // VERY EARLY LOGGING TO STDERR
+  process.stderr.write('[MCP Server] Entering handleStdioMode\n');
   
-  // Redirect all logger output to stderr
-  logger.transports.forEach(transport => {
-    transport.stderrLevels = Object.keys(logger.levels);
-    transport.consoleWarnLevels = [];
-  });
+  try { // Wrap main logic in try...catch
+    // Log to stderr instead of stdout to avoid interfering with JSON communication
+    // console.error('Running in stdio mode for Cursor MCP'); // Redundant with stderr logging
   
-  // Disable console.log to prevent interfering with JSON communication
-  console.log = function() {};
+    // Redirect all logger output to stderr
+    logger.transports.forEach(transport => {
+      transport.stderrLevels = Object.keys(logger.levels);
+      transport.consoleWarnLevels = [];
+    });
   
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: false
-  });
+    // Disable console.log to prevent interfering with JSON communication
+    console.log = function() {};
   
-  // Create an object with available blockchain tools
-  const blockchainService = require('../src/services/blockchain.service');
-  const tools = blockchainService.getToolsList();
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: false
+    });
   
-  // Helper function for safe logging to stderr
-  function stdErrLog(message) {
-    process.stderr.write(`${message}\n`);
-  }
+    // Create an object with available blockchain tools
+    const blockchainService = require('../src/services/blockchain.service');
+    const tools = blockchainService.getToolsList();
   
-  // Process and manage JSON-RPC responses
-  let responseQueue = [];
-  let isProcessingQueue = false;
-  
-  // Helper function to safely send JSON responses - manages a queue to ensure proper delivery
-  function sendJSONResponse(data) {
-    try {
-      const jsonStr = JSON.stringify(data);
-      stdErrLog(`Queuing response: ${jsonStr}`);
-      
-      // Add response to queue
-      responseQueue.push(jsonStr);
-      
-      // Process queue if not already processing
-      if (!isProcessingQueue) {
-        processResponseQueue();
-      }
-    } catch (err) {
-      stdErrLog(`Error serializing response: ${err.message}`);
+    // Helper function for safe logging to stderr
+    function stdErrLog(message) {
+      process.stderr.write(`${message}\n`);
     }
-  }
   
-  // Process responses one at a time
-  function processResponseQueue() {
-    if (responseQueue.length === 0) {
-      isProcessingQueue = false;
-      return;
-    }
-    
-    isProcessingQueue = true;
-    const response = responseQueue.shift();
-    
-    stdErrLog(`Sending response: ${response}`);
-    process.stdout.write(response + '\n');
-    
-    // Wait a short time before processing next response to ensure proper separation
-    setTimeout(processResponseQueue, 50);
-  }
+    // Process and manage JSON-RPC responses
+    let responseQueue = [];
+    let isProcessingQueue = false;
   
-  // No longer send initial response - wait for initialize request from Cursor
-  
-  // Handle commands from stdin
-  rl.on('line', async (line) => {
-    try {
-      if (!line || line.trim() === '') return;
-      
-      stdErrLog(`Received line: ${line}`);
-      
-      let request;
+    // Helper function to safely send JSON responses - manages a queue to ensure proper delivery
+    function sendJSONResponse(data) {
       try {
-        request = JSON.parse(line);
-      } catch (parseError) {
-        stdErrLog(`JSON parse error: ${parseError.message}`);
-        sendJSONResponse({
-          jsonrpc: "2.0",
-          id: null,
-          error: {
-            code: -32700,
-            message: `Parse error: ${parseError.message}`
-          }
-        });
+        const jsonStr = JSON.stringify(data);
+        stdErrLog(`Queuing response: ${jsonStr}`);
+        
+        // Add response to queue
+        responseQueue.push(jsonStr);
+        
+        // Process queue if not already processing
+        if (!isProcessingQueue) {
+          processResponseQueue();
+        }
+      } catch (err) {
+        stdErrLog(`Error serializing response: ${err.message}`);
+      }
+    }
+  
+    // Process responses one at a time
+    function processResponseQueue() {
+      if (responseQueue.length === 0) {
+        isProcessingQueue = false;
         return;
       }
       
-      stdErrLog(`Parsed request: ${JSON.stringify(request)}`);
+      isProcessingQueue = true;
+      const response = responseQueue.shift();
       
-      const { id, method, params } = request;
+      stdErrLog(`Sending response: ${response}`);
+      process.stdout.write(response + '\n');
       
-      // Handle initialize method for Cursor MCP
-      if (method === 'initialize') {
-        sendJSONResponse({
-          jsonrpc: "2.0",
-          id: id,
-          result: {
-            capabilities: {}
-          }
-        });
-        return;
-      } else if (method === 'tools') {
-        // Return available tools
-        sendJSONResponse({
-          jsonrpc: "2.0",
-          id: id,
-          result: {
-            tools: tools
-          }
-        });
-        return;
-      } else if (method === 'execute') {
-        const { tool, params: toolParams } = params;
+      // Wait a short time before processing next response to ensure proper separation
+      setTimeout(processResponseQueue, 50);
+    }
+  
+    // No longer send initial response - wait for initialize request from Cursor
+  
+    // Handle commands from stdin
+    rl.on('line', async (line) => {
+      try {
+        if (!line || line.trim() === '') return;
         
-        if (!tool) {
-          const errorResponse = {
-            jsonrpc: "2.0",
-            id: id || "1",
-            error: {
-              code: -32602,
-              message: 'Missing tool name'
-            }
-          };
-          sendJSONResponse(errorResponse);
-          return;
-        }
+        stdErrLog(`Received line: ${line}`);
         
-        // Parse tool name to extract network
-        const match = tool.match(/^(.+)_rpc$/);
-        if (!match) {
-          const errorResponse = {
-            jsonrpc: "2.0", 
-            id: id || "1",
-            error: {
-              code: -32602,
-              message: `Invalid tool name: ${tool}`
-            }
-          };
-          sendJSONResponse(errorResponse);
-          return;
-        }
-        
-        const networkId = match[1].replace(/_/g, '-');
-        const { method: rpcMethod, params: rpcParams } = toolParams || {};
-        
-        if (!rpcMethod) {
-          const errorResponse = {
-            jsonrpc: "2.0",
-            id: id || "1",
-            error: {
-              code: -32602,
-              message: 'Missing method'
-            }
-          };
-          sendJSONResponse(errorResponse);
-          return;
-        }
-        
+        let request;
         try {
-          const result = await blockchainService.processRpcRequest(
-            networkId,
-            rpcMethod,
-            rpcParams || [],
-            id || 1
-          );
-          
-          const response = {
+          request = JSON.parse(line);
+        } catch (parseError) {
+          stdErrLog(`JSON parse error: ${parseError.message}`);
+          sendJSONResponse({
             jsonrpc: "2.0",
-            id: id || "1",
-            result
-          };
+            id: null,
+            error: {
+              code: -32700,
+              message: `Parse error: ${parseError.message}`
+            }
+          });
+          return;
+        }
+        
+        stdErrLog(`Parsed request: ${JSON.stringify(request)}`);
+        
+        const { id, method, params } = request;
+        
+        // Handle initialize method for Cursor MCP
+        if (method === 'initialize') {
+          sendJSONResponse({
+            jsonrpc: "2.0",
+            id: id,
+            result: {
+              capabilities: {}
+            }
+          });
+          return;
+        } else if (method === 'tools') {
+          // Return available tools
+          sendJSONResponse({
+            jsonrpc: "2.0",
+            id: id,
+            result: {
+              tools: tools
+            }
+          });
+          return;
+        } else if (method === 'execute') {
+          const { tool, params: toolParams } = params;
           
-          sendJSONResponse(response);
-        } catch (error) {
+          if (!tool) {
+            const errorResponse = {
+              jsonrpc: "2.0",
+              id: id || "1",
+              error: {
+                code: -32602,
+                message: 'Missing tool name'
+              }
+            };
+            sendJSONResponse(errorResponse);
+            return;
+          }
+          
+          // Parse tool name to extract network
+          const match = tool.match(/^(.+)_rpc$/);
+          if (!match) {
+            const errorResponse = {
+              jsonrpc: "2.0", 
+              id: id || "1",
+              error: {
+                code: -32602,
+                message: `Invalid tool name: ${tool}`
+              }
+            };
+            sendJSONResponse(errorResponse);
+            return;
+          }
+          
+          const networkId = match[1].replace(/_/g, '-');
+          const { method: rpcMethod, params: rpcParams } = toolParams || {};
+          
+          if (!rpcMethod) {
+            const errorResponse = {
+              jsonrpc: "2.0",
+              id: id || "1",
+              error: {
+                code: -32602,
+                message: 'Missing method'
+              }
+            };
+            sendJSONResponse(errorResponse);
+            return;
+          }
+          
+          try {
+            const result = await blockchainService.processRpcRequest(
+              networkId,
+              rpcMethod,
+              rpcParams || [],
+              id || 1
+            );
+            
+            const response = {
+              jsonrpc: "2.0",
+              id: id || "1",
+              result
+            };
+            
+            sendJSONResponse(response);
+          } catch (error) {
+            const errorResponse = {
+              jsonrpc: "2.0",
+              id: id || "1",
+              error: {
+                code: -32603,
+                message: error.message
+              }
+            };
+            sendJSONResponse(errorResponse);
+          }
+        } else if (method === 'exit' || method === 'shutdown') {
+          logger.info('Received exit command, shutting down');
+          process.exit(0);
+        } else {
           const errorResponse = {
             jsonrpc: "2.0",
             id: id || "1",
             error: {
-              code: -32603,
-              message: error.message
+              code: -32601,
+              message: `Method not found: ${method}`
             }
           };
           sendJSONResponse(errorResponse);
         }
-      } else if (method === 'exit' || method === 'shutdown') {
-        logger.info('Received exit command, shutting down');
-        process.exit(0);
-      } else {
+      } catch (error) {
+        logger.error(`Error handling request: ${error.message}`);
         const errorResponse = {
           jsonrpc: "2.0",
-          id: id || "1",
+          id: "1",
           error: {
-            code: -32601,
-            message: `Method not found: ${method}`
+            code: -32700,
+            message: `Parse error: ${error.message}`
           }
         };
         sendJSONResponse(errorResponse);
       }
-    } catch (error) {
-      logger.error(`Error handling request: ${error.message}`);
-      const errorResponse = {
-        jsonrpc: "2.0",
-        id: "1",
-        error: {
-          code: -32700,
-          message: `Parse error: ${error.message}`
-        }
-      };
-      sendJSONResponse(errorResponse);
-    }
-  });
+    });
+  } catch (error) {
+    // Catch any synchronous error during setup or runtime
+    process.stderr.write(`[MCP Server] UNCAUGHT ERROR in handleStdioMode: ${error.message}\n${error.stack}\n`);
+    // Exit gracefully if possible, though this might be the cause of the closure
+    process.exit(1);
+  }
 }
 
 // Check if a port is in use
