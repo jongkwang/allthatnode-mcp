@@ -27,11 +27,13 @@ const logger = winston.createLogger({
 });
 
 // Add verbose logging when requested
-const setVerbose = (verbose) => {
-  if (verbose) {
+function setVerbose(enabled) {
+  if (enabled) {
     logger.level = 'debug';
+  } else {
+    logger.level = 'info';
   }
-};
+}
 
 module.exports = {
   logger,

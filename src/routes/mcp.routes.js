@@ -46,7 +46,12 @@ router.get('/tools', (req, res) => {
     });
   });
   
-  res.json({ tools });
+  const response = { tools };
+  logger.debug(`Responding with: ${JSON.stringify(response)}`);
+  
+  // Set explicit content-type and send JSON response manually
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.send(JSON.stringify(response));
 });
 
 /**
@@ -62,11 +67,12 @@ router.post('/rpc/:network', async (req, res) => {
     
     if (!method) {
       logger.error('Missing RPC method in request');
-      return res.status(400).json({
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(400).send(JSON.stringify({
         error: {
           message: 'Missing RPC method'
         }
-      });
+      }));
     }
     
     const response = await blockchainService.processRpcRequest(
@@ -76,14 +82,16 @@ router.post('/rpc/:network', async (req, res) => {
       id || 1
     );
     
-    res.json(response);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.send(JSON.stringify(response));
   } catch (error) {
     logger.error(`Error processing RPC request: ${error.message}`);
-    res.status(500).json({
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(500).send(JSON.stringify({
       error: {
         message: error.message
       }
-    });
+    }));
   }
 });
 
@@ -95,7 +103,8 @@ router.get('/networks', (req, res) => {
   logger.debug('Handling GET /mcp/networks request');
   
   const networks = blockchainService.getAvailableNetworks();
-  res.json({ networks });
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.send(JSON.stringify({ networks }));
 });
 
 /**
@@ -105,10 +114,11 @@ router.get('/networks', (req, res) => {
 router.get('/health', (req, res) => {
   logger.debug('Handling GET /mcp/health request');
   
-  res.json({
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.send(JSON.stringify({
     status: 'ok',
     timestamp: new Date().toISOString()
-  });
+  }));
 });
 
 module.exports = router; 
