@@ -95,82 +95,11 @@ router.get('/sse', (req, res) => {
 // Root SSE endpoint for Cursor compatibility
 router.get('/events', (req, res) => {
   logger.debug('Handling GET /events request (SSE at root level)');
-  sendSSEResponse(req, res);
-});
-
-// Root level /tools endpoint for Cursor compatibility
-router.get('/tools', (req, res) => {
-  logger.debug('Handling GET /tools request (root level)');
-  sendToolsResponse(res);
-});
-
-// Root route for API
-router.get('/', (req, res) => {
-  logger.debug('Handling GET / request');
   
-  res.json({
-    name: 'AllThatNode MCP',
-    description: 'Model Context Protocol for AllThatNode blockchain RPC services',
-    endpoints: {
-      tools: '/mcp/tools',
-      networks: '/mcp/networks',
-      health: '/mcp/health',
-      rpc: '/mcp/rpc/:network',
-      events: '/events',
-      mcp_events: '/mcp/events',
-      sse: '/mcp/sse'
-    },
-    documentation: 'https://github.com/jongkwang/allthatnode-mcp'
-  });
-});
-
-// Helper function to create tools response
-function sendToolsResponse(res) {
-  const tools = [];
-  const networks = blockchainService.getAvailableNetworks();
-  
-  // Create a tool for each network
-  networks.forEach(networkId => {
-    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
-    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
-    
-    tools.push({
-      name: toolName,
-      description: `JSON-RPC API for ${networkId}`,
-      parameters: {
-        type: 'object',
-        required: ['method'],
-        properties: {
-          method: {
-            type: 'string',
-            description: 'JSON-RPC method name'
-          },
-          params: {
-            type: 'array',
-            description: 'JSON-RPC method parameters',
-            items: {
-              type: 'object'
-            }
-          },
-          id: {
-            type: ['string', 'number'],
-            description: 'Request ID',
-            default: 1
-          }
-        }
-      }
-    });
-  });
-  
-  return res.json({ tools });
-}
-
-// Helper function to setup SSE response
-function sendSSEResponse(req, res) {
   // Extract request ID from query parameters if available
   const reqId = req.query.id || "1";
   logger.debug(`Request ID from client: ${reqId}`);
-
+  
   const tools = [];
   const networks = blockchainService.getAvailableNetworks();
   
@@ -215,7 +144,7 @@ function sendSSEResponse(req, res) {
       tools: tools
     }
   };
-
+  
   logger.debug(`Sending JSON-RPC response with ID ${reqId}: ${JSON.stringify(jsonRpcResponse)}`);
   
   // Setup SSE connection
@@ -244,6 +173,73 @@ function sendSSEResponse(req, res) {
     res.end();
     logger.debug('SSE connection closed');
   });
+});
+
+// Root level /tools endpoint for Cursor compatibility
+router.get('/tools', (req, res) => {
+  logger.debug('Handling GET /tools request (root level)');
+  sendToolsResponse(res);
+});
+
+// Root route for API
+router.get('/', (req, res) => {
+  logger.debug('Handling GET / request');
+  
+  res.json({
+    name: 'AllThatNode MCP',
+    description: 'Model Context Protocol for AllThatNode blockchain RPC services',
+    endpoints: {
+      tools: '/mcp/tools',
+      networks: '/mcp/networks',
+      health: '/mcp/health',
+      rpc: '/mcp/rpc/:network',
+      events: '/events',
+      mcp_events: '/mcp/events',
+      sse: '/sse'
+    },
+    documentation: 'https://github.com/jongkwang/allthatnode-mcp'
+  });
+});
+
+// Helper function to create tools response
+function sendToolsResponse(res) {
+  const tools = [];
+  const networks = blockchainService.getAvailableNetworks();
+  
+  // Create a tool for each network
+  networks.forEach(networkId => {
+    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
+    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
+    
+    tools.push({
+      name: toolName,
+      description: `JSON-RPC API for ${networkId}`,
+      parameters: {
+        type: 'object',
+        required: ['method'],
+        properties: {
+          method: {
+            type: 'string',
+            description: 'JSON-RPC method name'
+          },
+          params: {
+            type: 'array',
+            description: 'JSON-RPC method parameters',
+            items: {
+              type: 'object'
+            }
+          },
+          id: {
+            type: ['string', 'number'],
+            description: 'Request ID',
+            default: 1
+          }
+        }
+      }
+    });
+  });
+  
+  return res.json({ tools });
 }
 
 module.exports = router; 
