@@ -11,8 +11,25 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Log all requests for debugging
+app.use((req, res, next) => {
+  logger.debug(`Received ${req.method} request for ${req.url}`);
+  logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
+  next();
+});
+
 // Use routes
 app.use('/', routes);
+
+// 404 handler
+app.use((req, res, next) => {
+  logger.error(`404 Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({
+    error: {
+      message: `Path not found: ${req.url}`
+    }
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -51,6 +68,9 @@ function start(options = {}) {
     logger.info(`- GET  http://localhost:${port}/mcp/networks`);
     logger.info(`- GET  http://localhost:${port}/mcp/health`);
     logger.info(`- POST http://localhost:${port}/mcp/rpc/:network`);
+    logger.info(`- GET  http://localhost:${port}/events (SSE endpoint)`);
+    logger.info(`- GET  http://localhost:${port}/mcp/events (SSE endpoint)`);
+    logger.info(`- GET  http://localhost:${port}/mcp/sse (SSE endpoint)`);
   });
   
   return { app, server };

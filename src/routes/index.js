@@ -7,11 +7,89 @@ const router = express.Router();
 
 // MCP routes
 router.use('/mcp', mcpRoutes);
+router.use('/v1', mcpRoutes); // Add v1 prefix support for MCP compatibility
+
+// Root level /sse endpoint for Cursor compatibility
+router.get('/sse', (req, res) => {
+  logger.debug('Handling GET /sse request (root level SSE)');
+  sendSSEResponse(req, res);
+});
 
 // Root SSE endpoint for Cursor compatibility
 router.get('/events', (req, res) => {
   logger.debug('Handling GET /events request (SSE at root level)');
+  sendSSEResponse(req, res);
+});
+
+// Root level /tools endpoint for Cursor compatibility
+router.get('/tools', (req, res) => {
+  logger.debug('Handling GET /tools request (root level)');
+  sendToolsResponse(res);
+});
+
+// Root route for API
+router.get('/', (req, res) => {
+  logger.debug('Handling GET / request');
   
+  res.json({
+    name: 'AllThatNode MCP',
+    description: 'Model Context Protocol for AllThatNode blockchain RPC services',
+    endpoints: {
+      tools: '/mcp/tools',
+      networks: '/mcp/networks',
+      health: '/mcp/health',
+      rpc: '/mcp/rpc/:network',
+      events: '/events',
+      mcp_events: '/mcp/events',
+      sse: '/mcp/sse'
+    },
+    documentation: 'https://github.com/jongkwang/allthatnode-mcp'
+  });
+});
+
+// Helper function to create tools response
+function sendToolsResponse(res) {
+  const tools = [];
+  const networks = blockchainService.getAvailableNetworks();
+  
+  // Create a tool for each network
+  networks.forEach(networkId => {
+    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
+    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
+    
+    tools.push({
+      name: toolName,
+      description: `JSON-RPC API for ${networkId}`,
+      parameters: {
+        type: 'object',
+        required: ['method'],
+        properties: {
+          method: {
+            type: 'string',
+            description: 'JSON-RPC method name'
+          },
+          params: {
+            type: 'array',
+            description: 'JSON-RPC method parameters',
+            items: {
+              type: 'object'
+            }
+          },
+          id: {
+            type: ['string', 'number'],
+            description: 'Request ID',
+            default: 1
+          }
+        }
+      }
+    });
+  });
+  
+  return res.json({ tools });
+}
+
+// Helper function to setup SSE response
+function sendSSEResponse(req, res) {
   const tools = [];
   const networks = blockchainService.getAvailableNetworks();
   
@@ -69,26 +147,6 @@ router.get('/events', (req, res) => {
     res.end();
     logger.debug('SSE connection closed');
   });
-});
-
-// Root route for API
-router.get('/', (req, res) => {
-  logger.debug('Handling GET / request');
-  
-  res.json({
-    name: 'AllThatNode MCP',
-    description: 'Model Context Protocol for AllThatNode blockchain RPC services',
-    endpoints: {
-      tools: '/mcp/tools',
-      networks: '/mcp/networks',
-      health: '/mcp/health',
-      rpc: '/mcp/rpc/:network',
-      events: '/events',
-      mcp_events: '/mcp/events',
-      sse: '/mcp/sse'
-    },
-    documentation: 'https://github.com/jongkwang/allthatnode-mcp'
-  });
-});
+}
 
 module.exports = router; 
