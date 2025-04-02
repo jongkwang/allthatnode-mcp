@@ -148,9 +148,9 @@ router.get('/tools', (req, res) => {
   sendToolsResponse(res);
 });
 
-// SSE endpoint for Cursor compatibility (restored)
+// SSE endpoint for Cursor compatibility (modified to Command-based API)
 router.get('/sse', (req, res) => {
-  logger.debug('Handling GET /sse request (root level SSE)');
+  logger.debug('Handling GET /sse request (Command-based API for Cursor)');
   logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
   
   const tools = [];
@@ -200,34 +200,10 @@ router.get('/sse', (req, res) => {
     }
   };
   
-  logger.debug(`Sending JSON-RPC response with ID ${reqId}: ${JSON.stringify(jsonRpcResponse)}`);
+  logger.debug(`Responding with Command-based data: ${JSON.stringify(jsonRpcResponse)}`);
   
-  // Setup SSE connection
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  
-  // Send initial data in JSON-RPC 2.0 format
-  res.write(`data: ${JSON.stringify(jsonRpcResponse)}\n\n`);
-  
-  // Keep connection open with heartbeat
-  const intervalId = setInterval(() => {
-    const heartbeat = {
-      jsonrpc: "2.0",
-      method: "heartbeat",
-      params: {
-        timestamp: new Date().toISOString()
-      }
-    };
-    res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
-  }, 30000);
-  
-  // Handle client disconnect
-  req.on('close', () => {
-    clearInterval(intervalId);
-    res.end();
-    logger.debug('SSE connection closed');
-  });
+  res.setHeader('Content-Type', 'application/json');
+  return res.json(jsonRpcResponse);
 });
 
 // Root route for API
