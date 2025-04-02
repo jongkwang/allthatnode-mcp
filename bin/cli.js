@@ -27,8 +27,8 @@ function handleStdioMode() {
   });
   
   // Create an object with available blockchain tools
-  const { getToolsList } = require('../src/services/blockchain.service');
-  const tools = getToolsList();
+  const blockchainService = require('../src/services/blockchain.service');
+  const tools = blockchainService.getToolsList();
   
   // Send initial response with tool list
   const initialResponse = {
@@ -98,7 +98,6 @@ function handleStdioMode() {
         }
         
         try {
-          const blockchainService = require('../src/services/blockchain.service');
           const result = await blockchainService.processRpcRequest(
             networkId,
             rpcMethod,
