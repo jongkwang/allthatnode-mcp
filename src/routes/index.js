@@ -12,10 +12,18 @@ router.use('/v1', mcpRoutes); // Add v1 prefix support for MCP compatibility
 // Root level /sse endpoint for Cursor compatibility
 router.get('/sse', (req, res) => {
   logger.debug('Handling GET /sse request (root level SSE)');
+  logger.debug(`Full URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+  logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
+  logger.debug(`Query params: ${JSON.stringify(req.query)}`);
   
   // Extract request ID from query parameters if available
-  const reqId = req.query.id || "1";
-  logger.debug(`Request ID from client: ${reqId}`);
+  const pathId = req.params.id;
+  const queryId = req.query.id || req.query.messageId;
+  const headerId = req.headers['x-request-id'] || req.headers['mcp-request-id'] || req.headers['accept'];
+  
+  // Use requestID from any available source
+  const reqId = pathId || queryId || headerId || "1";
+  logger.debug(`Request ID extracted: ${reqId}, source: ${pathId ? 'path' : (queryId ? 'query' : (headerId ? 'header' : 'default'))}`);
   
   const tools = [];
   const networks = blockchainService.getAvailableNetworks();
