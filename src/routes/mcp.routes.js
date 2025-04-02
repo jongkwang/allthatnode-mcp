@@ -49,8 +49,31 @@ router.get('/tools', (req, res) => {
   const response = { tools };
   logger.debug(`Responding with: ${JSON.stringify(response)}`);
   
-  // Use Express's res.json() instead of manual JSON stringification
-  return res.json(response);
+  // Handle SSE request if Accept header includes 'text/event-stream'
+  const acceptHeader = req.headers.accept || '';
+  if (acceptHeader.includes('text/event-stream')) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    // Send initial data
+    res.write(`data: ${JSON.stringify(response)}\n\n`);
+    
+    // Keep connection open
+    const intervalId = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 30000);
+    
+    // Handle client disconnect
+    req.on('close', () => {
+      clearInterval(intervalId);
+      res.end();
+      logger.debug('SSE connection closed');
+    });
+  } else {
+    // Regular HTTP response
+    return res.json(response);
+  }
 });
 
 /**
