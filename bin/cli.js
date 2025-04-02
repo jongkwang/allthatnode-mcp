@@ -41,15 +41,43 @@ function handleStdioMode() {
     process.stderr.write(`${message}\n`);
   }
   
-  // Helper function to safely send JSON responses
+  // Process and manage JSON-RPC responses
+  let responseQueue = [];
+  let isProcessingQueue = false;
+  
+  // Helper function to safely send JSON responses - manages a queue to ensure proper delivery
   function sendJSONResponse(data) {
     try {
       const jsonStr = JSON.stringify(data);
-      stdErrLog(`Sending response: ${jsonStr}`);
-      process.stdout.write(jsonStr + '\n');
+      stdErrLog(`Queuing response: ${jsonStr}`);
+      
+      // Add response to queue
+      responseQueue.push(jsonStr);
+      
+      // Process queue if not already processing
+      if (!isProcessingQueue) {
+        processResponseQueue();
+      }
     } catch (err) {
       stdErrLog(`Error serializing response: ${err.message}`);
     }
+  }
+  
+  // Process responses one at a time
+  function processResponseQueue() {
+    if (responseQueue.length === 0) {
+      isProcessingQueue = false;
+      return;
+    }
+    
+    isProcessingQueue = true;
+    const response = responseQueue.shift();
+    
+    stdErrLog(`Sending response: ${response}`);
+    process.stdout.write(response + '\n');
+    
+    // Wait a short time before processing next response to ensure proper separation
+    setTimeout(processResponseQueue, 50);
   }
   
   // No longer send initial response - wait for initialize request from Cursor
