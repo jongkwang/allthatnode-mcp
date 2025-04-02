@@ -9,21 +9,10 @@ const router = express.Router();
 router.use('/mcp', mcpRoutes);
 router.use('/v1', mcpRoutes); // Add v1 prefix support for MCP compatibility
 
-// Root level /sse endpoint for Cursor compatibility
-router.get('/sse', (req, res) => {
-  logger.debug('Handling GET /sse request (root level SSE)');
-  logger.debug(`Full URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+// MCP root level endpoints for Command-based MCP
+router.get('/commands', (req, res) => {
+  logger.debug('Handling GET /commands request (root level)');
   logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
-  logger.debug(`Query params: ${JSON.stringify(req.query)}`);
-  
-  // Extract request ID from query parameters if available
-  const pathId = req.params.id;
-  const queryId = req.query.id || req.query.messageId;
-  const headerId = req.headers['x-request-id'] || req.headers['mcp-request-id'] || req.headers['accept'];
-  
-  // Use requestID from any available source
-  const reqId = pathId || queryId || headerId || "1";
-  logger.debug(`Request ID extracted: ${reqId}, source: ${pathId ? 'path' : (queryId ? 'query' : (headerId ? 'header' : 'default'))}`);
   
   const tools = [];
   const networks = blockchainService.getAvailableNetworks();
@@ -61,129 +50,99 @@ router.get('/sse', (req, res) => {
     });
   });
   
-  // Create JSON-RPC 2.0 compliant response with client's request ID
-  const jsonRpcResponse = {
+  // Respond with JSON-RPC 2.0 format
+  const response = {
     jsonrpc: "2.0",
-    id: reqId,
+    id: req.query.id || req.headers['x-request-id'] || "1",
     result: {
       tools: tools
     }
   };
   
-  logger.debug(`Sending JSON-RPC response with ID ${reqId}: ${JSON.stringify(jsonRpcResponse)}`);
-  
-  // Setup SSE connection
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  
-  // Send initial data in JSON-RPC 2.0 format
-  res.write(`data: ${JSON.stringify(jsonRpcResponse)}\n\n`);
-  
-  // Keep connection open with heartbeat
-  const intervalId = setInterval(() => {
-    const heartbeat = {
-      jsonrpc: "2.0",
-      method: "heartbeat",
-      params: {
-        timestamp: new Date().toISOString()
-      }
-    };
-    res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
-  }, 30000);
-  
-  // Handle client disconnect
-  req.on('close', () => {
-    clearInterval(intervalId);
-    res.end();
-    logger.debug('SSE connection closed');
-  });
+  logger.debug(`Responding with: ${JSON.stringify(response)}`);
+  return res.json(response);
 });
 
-// Root SSE endpoint for Cursor compatibility
-router.get('/events', (req, res) => {
-  logger.debug('Handling GET /events request (SSE at root level)');
-  
-  // Extract request ID from query parameters if available
-  const reqId = req.query.id || "1";
-  logger.debug(`Request ID from client: ${reqId}`);
-  
-  const tools = [];
-  const networks = blockchainService.getAvailableNetworks();
-  
-  // Create a tool for each network
-  networks.forEach(networkId => {
-    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
-    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
+router.post('/commands', async (req, res) => {
+  try {
+    logger.debug('Handling POST /commands request (root level)');
+    logger.debug(`Request body: ${JSON.stringify(req.body)}`);
     
-    tools.push({
-      name: toolName,
-      description: `JSON-RPC API for ${networkId}`,
-      parameters: {
-        type: 'object',
-        required: ['method'],
-        properties: {
-          method: {
-            type: 'string',
-            description: 'JSON-RPC method name'
-          },
-          params: {
-            type: 'array',
-            description: 'JSON-RPC method parameters',
-            items: {
-              type: 'object'
-            }
-          },
-          id: {
-            type: ['string', 'number'],
-            description: 'Request ID',
-            default: 1
-          }
+    const { tool, params, id } = req.body;
+    
+    if (!tool) {
+      logger.error('Missing tool name in request');
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        id: id || "1",
+        error: {
+          code: -32602,
+          message: 'Invalid params: Missing tool name'
         }
+      });
+    }
+    
+    // Parse tool name to extract network (ethereum_mainnet_rpc -> ethereum-mainnet)
+    const match = tool.match(/^(.+)_rpc$/);
+    if (!match) {
+      logger.error(`Invalid tool name format: ${tool}`);
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        id: id || "1",
+        error: {
+          code: -32602,
+          message: `Invalid tool name format: ${tool}`
+        }
+      });
+    }
+    
+    const networkId = match[1].replace(/_/g, '-');
+    const { method, params: rpcParams } = params || {};
+    
+    logger.debug(`Processing RPC for ${networkId}: ${method}`);
+    
+    if (!method) {
+      logger.error('Missing RPC method in request');
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        id: id || "1",
+        error: {
+          code: -32602,
+          message: 'Invalid params: Missing method'
+        }
+      });
+    }
+    
+    const rpcResponse = await blockchainService.processRpcRequest(
+      networkId,
+      method,
+      rpcParams || [],
+      id || 1
+    );
+    
+    // Respond with JSON-RPC 2.0 format
+    const response = {
+      jsonrpc: "2.0",
+      id: id || "1",
+      result: rpcResponse
+    };
+    
+    logger.debug(`Responding with: ${JSON.stringify(response)}`);
+    return res.json(response);
+  } catch (error) {
+    logger.error(`Error processing command: ${error.message}`);
+    return res.status(500).json({
+      jsonrpc: "2.0",
+      id: req.body.id || "1",
+      error: {
+        code: -32603,
+        message: error.message
       }
     });
-  });
-  
-  // Create JSON-RPC 2.0 compliant response with client's request ID
-  const jsonRpcResponse = {
-    jsonrpc: "2.0",
-    id: reqId,
-    result: {
-      tools: tools
-    }
-  };
-  
-  logger.debug(`Sending JSON-RPC response with ID ${reqId}: ${JSON.stringify(jsonRpcResponse)}`);
-  
-  // Setup SSE connection
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  
-  // Send initial data in JSON-RPC 2.0 format
-  res.write(`data: ${JSON.stringify(jsonRpcResponse)}\n\n`);
-  
-  // Keep connection open with heartbeat
-  const intervalId = setInterval(() => {
-    const heartbeat = {
-      jsonrpc: "2.0",
-      method: "heartbeat",
-      params: {
-        timestamp: new Date().toISOString()
-      }
-    };
-    res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
-  }, 30000);
-  
-  // Handle client disconnect
-  req.on('close', () => {
-    clearInterval(intervalId);
-    res.end();
-    logger.debug('SSE connection closed');
-  });
+  }
 });
 
-// Root level /tools endpoint for Cursor compatibility
+// Root level /tools endpoint for compatibility
 router.get('/tools', (req, res) => {
   logger.debug('Handling GET /tools request (root level)');
   sendToolsResponse(res);
@@ -201,9 +160,8 @@ router.get('/', (req, res) => {
       networks: '/mcp/networks',
       health: '/mcp/health',
       rpc: '/mcp/rpc/:network',
-      events: '/events',
-      mcp_events: '/mcp/events',
-      sse: '/sse'
+      commands: '/commands',
+      mcp_commands: '/mcp/commands'
     },
     documentation: 'https://github.com/jongkwang/allthatnode-mcp'
   });

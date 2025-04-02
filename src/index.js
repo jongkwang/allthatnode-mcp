@@ -68,10 +68,10 @@ function start(options = {}) {
     logger.info(`- GET  http://localhost:${port}/mcp/networks`);
     logger.info(`- GET  http://localhost:${port}/mcp/health`);
     logger.info(`- POST http://localhost:${port}/mcp/rpc/:network`);
-    logger.info(`- GET  http://localhost:${port}/sse (SSE endpoint)`);
-    logger.info(`- GET  http://localhost:${port}/events (SSE endpoint)`);
-    logger.info(`- GET  http://localhost:${port}/mcp/events (SSE endpoint)`);
-    logger.info(`- GET  http://localhost:${port}/mcp/sse (SSE endpoint)`);
+    logger.info(`- GET  http://localhost:${port}/commands (Command-based MCP endpoint)`);
+    logger.info(`- POST http://localhost:${port}/commands (Command-based MCP endpoint)`);
+    logger.info(`- GET  http://localhost:${port}/mcp/commands (Command-based MCP endpoint)`);
+    logger.info(`- POST http://localhost:${port}/mcp/commands (Command-based MCP endpoint)`);
   });
   
   return { app, server };
