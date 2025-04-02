@@ -4,7 +4,7 @@
   "description": "Model Context Protocol (MCP) implementation for AllThatNode blockchain RPC services",
   "main": "src/index.js",
   "bin": {
-    "allthatnode-mcp": "./bin/cli.js"
+    "allthatnode-mcp": "bin/cli.js"
   },
   "scripts": {
     "start": "node src/index.js",
@@ -29,7 +29,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jongkwang/allthatnode-mcp"
+    "url": "git+https://github.com/jongkwang/allthatnode-mcp.git"
   },
   "publishConfig": {
     "access": "public"
@@ -51,4 +51,4 @@
   "engines": {
     "node": ">=14.0.0"
   }
-} 
+}
