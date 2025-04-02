@@ -14,10 +14,16 @@ function isStdioMode() {
 
 // Handle stdin/stdout communication for Cursor MCP
 function handleStdioMode() {
-  logger.info('Running in stdio mode for Cursor MCP');
+  // Log to stderr instead of stdout to avoid interfering with JSON communication
+  console.error('Running in stdio mode for Cursor MCP');
+  
+  // Redirect all logger output to stderr
+  logger.transports.forEach(transport => {
+    transport.stderrLevels = Object.keys(logger.levels);
+    transport.consoleWarnLevels = [];
+  });
   
   // Disable console.log to prevent interfering with JSON communication
-  const originalConsoleLog = console.log;
   console.log = function() {};
   
   const rl = readline.createInterface({
@@ -30,6 +36,22 @@ function handleStdioMode() {
   const blockchainService = require('../src/services/blockchain.service');
   const tools = blockchainService.getToolsList();
   
+  // Helper function for safe logging to stderr
+  function stdErrLog(message) {
+    process.stderr.write(`${message}\n`);
+  }
+  
+  // Helper function to safely send JSON responses
+  function sendJSONResponse(data) {
+    try {
+      const jsonStr = JSON.stringify(data);
+      stdErrLog(`Sending response: ${jsonStr}`);
+      process.stdout.write(jsonStr + '\n');
+    } catch (err) {
+      stdErrLog(`Error serializing response: ${err.message}`);
+    }
+  }
+  
   // No longer send initial response - wait for initialize request from Cursor
   
   // Handle commands from stdin
@@ -37,21 +59,37 @@ function handleStdioMode() {
     try {
       if (!line || line.trim() === '') return;
       
-      const request = JSON.parse(line);
-      logger.debug(`Received request: ${JSON.stringify(request)}`);
+      stdErrLog(`Received line: ${line}`);
+      
+      let request;
+      try {
+        request = JSON.parse(line);
+      } catch (parseError) {
+        stdErrLog(`JSON parse error: ${parseError.message}`);
+        sendJSONResponse({
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32700,
+            message: `Parse error: ${parseError.message}`
+          }
+        });
+        return;
+      }
+      
+      stdErrLog(`Parsed request: ${JSON.stringify(request)}`);
       
       const { id, method, params } = request;
       
       // Handle initialize method for Cursor MCP
       if (method === 'initialize') {
-        const response = {
+        sendJSONResponse({
           jsonrpc: "2.0",
           id: id,
           result: {
             capabilities: {}
           }
-        };
-        process.stdout.write(JSON.stringify(response) + '\n');
+        });
         return;
       } else if (method === 'execute') {
         const { tool, params: toolParams } = params;
@@ -65,7 +103,7 @@ function handleStdioMode() {
               message: 'Missing tool name'
             }
           };
-          process.stdout.write(JSON.stringify(errorResponse) + '\n');
+          sendJSONResponse(errorResponse);
           return;
         }
         
@@ -80,7 +118,7 @@ function handleStdioMode() {
               message: `Invalid tool name: ${tool}`
             }
           };
-          process.stdout.write(JSON.stringify(errorResponse) + '\n');
+          sendJSONResponse(errorResponse);
           return;
         }
         
@@ -96,7 +134,7 @@ function handleStdioMode() {
               message: 'Missing method'
             }
           };
-          process.stdout.write(JSON.stringify(errorResponse) + '\n');
+          sendJSONResponse(errorResponse);
           return;
         }
         
@@ -114,7 +152,7 @@ function handleStdioMode() {
             result
           };
           
-          process.stdout.write(JSON.stringify(response) + '\n');
+          sendJSONResponse(response);
         } catch (error) {
           const errorResponse = {
             jsonrpc: "2.0",
@@ -124,7 +162,7 @@ function handleStdioMode() {
               message: error.message
             }
           };
-          process.stdout.write(JSON.stringify(errorResponse) + '\n');
+          sendJSONResponse(errorResponse);
         }
       } else if (method === 'exit' || method === 'shutdown') {
         logger.info('Received exit command, shutting down');
@@ -138,7 +176,7 @@ function handleStdioMode() {
             message: `Method not found: ${method}`
           }
         };
-        process.stdout.write(JSON.stringify(errorResponse) + '\n');
+        sendJSONResponse(errorResponse);
       }
     } catch (error) {
       logger.error(`Error handling request: ${error.message}`);
@@ -150,7 +188,7 @@ function handleStdioMode() {
           message: `Parse error: ${error.message}`
         }
       };
-      process.stdout.write(JSON.stringify(errorResponse) + '\n');
+      sendJSONResponse(errorResponse);
     }
   });
 }
