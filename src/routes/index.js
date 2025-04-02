@@ -148,64 +148,6 @@ router.get('/tools', (req, res) => {
   sendToolsResponse(res);
 });
 
-// SSE endpoint for Cursor compatibility (modified to Command-based API)
-router.get('/sse', (req, res) => {
-  logger.debug('Handling GET /sse request (Command-based API for Cursor)');
-  logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
-  
-  const tools = [];
-  const networks = blockchainService.getAvailableNetworks();
-  
-  // Create a tool for each network
-  networks.forEach(networkId => {
-    // Format networkId as a valid tool name (ethereum-mainnet -> ethereum_mainnet_rpc)
-    const toolName = `${networkId.replace(/-/g, '_')}_rpc`;
-    
-    tools.push({
-      name: toolName,
-      description: `JSON-RPC API for ${networkId}`,
-      parameters: {
-        type: 'object',
-        required: ['method'],
-        properties: {
-          method: {
-            type: 'string',
-            description: 'JSON-RPC method name'
-          },
-          params: {
-            type: 'array',
-            description: 'JSON-RPC method parameters',
-            items: {
-              type: 'object'
-            }
-          },
-          id: {
-            type: ['string', 'number'],
-            description: 'Request ID',
-            default: 1
-          }
-        }
-      }
-    });
-  });
-  
-  // Create JSON-RPC 2.0 compliant response with client's request ID
-  const reqId = req.query.id || req.headers['x-request-id'] || "1";
-  
-  const jsonRpcResponse = {
-    jsonrpc: "2.0",
-    id: reqId,
-    result: {
-      tools: tools
-    }
-  };
-  
-  logger.debug(`Responding with Command-based data: ${JSON.stringify(jsonRpcResponse)}`);
-  
-  res.setHeader('Content-Type', 'application/json');
-  return res.json(jsonRpcResponse);
-});
-
 // Root route for API
 router.get('/', (req, res) => {
   logger.debug('Handling GET / request');
@@ -219,8 +161,7 @@ router.get('/', (req, res) => {
       health: '/mcp/health',
       rpc: '/mcp/rpc/:network',
       commands: '/commands',
-      mcp_commands: '/mcp/commands',
-      sse: '/sse'
+      mcp_commands: '/mcp/commands'
     },
     documentation: 'https://github.com/jongkwang/allthatnode-mcp'
   });
